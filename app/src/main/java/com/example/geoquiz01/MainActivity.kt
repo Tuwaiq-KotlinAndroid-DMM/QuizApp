@@ -1,5 +1,7 @@
 package com.example.geoquiz01
 
+import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
 import android.view.Menu
@@ -7,9 +9,11 @@ import android.widget.Button
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.ViewModelProvider
 
 private const val TAG = "MainActivity"
 private const val KEY_INDEX = "index"
+private const val REQUEST_CHEAT_CODE = 0
 
 class MainActivity: AppCompatActivity() {
 
@@ -17,16 +21,12 @@ class MainActivity: AppCompatActivity() {
      private lateinit var falseButton: Button
      private lateinit var nextButton: Button
      private lateinit var questionTextView: TextView
+     private lateinit var cheatButton: Button
 
-     private val questionBank = listOf(
-          Question(R.string.question_kotlinClass, true),
-          Question(R.string.question_australia, true),
-          Question(R.string.question_america, false),
-          Question(R.string.question_asia, true),
-          Question(R.string.question_mideast, false),
-          Question(R.string.question_oceans, false)
-     )
-     private var currentIndex = 0
+     private  val quizViewModel: QuizViewModel by lazy {
+          ViewModelProvider(this).get(QuizViewModel::class.java)
+     }
+
 
      override fun onCreate(savedInstanceState: Bundle?) {
           super.onCreate(savedInstanceState)
@@ -38,6 +38,7 @@ class MainActivity: AppCompatActivity() {
           falseButton = findViewById(R.id.false_button)
           nextButton = findViewById(R.id.next_button)
           questionTextView = findViewById(R.id.question_text_view)
+          cheatButton = findViewById(R.id.cheat_button)
 
           trueButton.setOnClickListener(){
                checkAnswer(true)
@@ -48,10 +49,29 @@ class MainActivity: AppCompatActivity() {
           }
 
           nextButton.setOnClickListener{
-               currentIndex = (currentIndex + 1) % questionBank.size
+               quizViewModel.moveToNext()
                updateQuestion()
           }
+
+          cheatButton.setOnClickListener(){
+               val answerIsTrue = quizViewModel.currentQuestionAnswer
+               val intent = CheatActivity.newIntent(this, answerIsTrue)
+           startActivityForResult(intent, REQUEST_CHEAT_CODE)
+
+          }
+
           updateQuestion()
+     }
+
+     override fun onActivityResult(requestCode:Int, resultCode:Int, data: Intent?){
+          super.onActivityResult(requestCode, resultCode, data)
+          if(resultCode != Activity.RESULT_OK){
+               return
+          }
+          if(requestCode == REQUEST_CHEAT_CODE){
+               quizViewModel.isCheater =
+                    data?.getBooleanExtra(EXTRA_ANSWER_SHOWN, false) ?: false
+          }
      }
 
      override fun onStart(){
@@ -80,22 +100,40 @@ class MainActivity: AppCompatActivity() {
      }
 
      private fun updateQuestion(){
-          val questionTextResId =  questionBank[currentIndex].textResId
-
+          val questionTextResId =  quizViewModel.currentQuestionText
           questionTextView.setText(questionTextResId)
      }
 
-     private fun checkAnswer(userAnswer: Boolean){
-          val correctAnswer = questionBank[currentIndex].answer
+     private fun checkAnswer(userAnswer: Boolean){1
+          val correctAnswer = quizViewModel.currentQuestionAnswer
 
-          val messageResId = if(userAnswer == correctAnswer){
-               R.string.toast_correct
-          } else {
-               R.string.toast_incorrect
+//          val messageResId = if(userAnswer == correctAnswer){
+//               R.string.toast_correct
+//          } else {
+//               R.string.toast_incorrect
+//          }
+
+          val messageResId = when {
+               quizViewModel.isCheater -> R.string.judgement_toast
+               userAnswer == correctAnswer -> R.string.toast_correct
+               else -> R.string.toast_incorrect
           }
-          Toast.makeText(this , messageResId, Toast.LENGTH_SHORT).show()
+
+               Toast.makeText(this , messageResId, Toast.LENGTH_SHORT).show()
 
      }
 
+     override fun onSaveInstanceState(savedInstanceState: Bundle) {
+          super.onSaveInstanceState(savedInstanceState)
+          Log.i(TAG, "onSaveInstanceState")
+          savedInstanceState.putInt(KEY_INDEX, quizViewModel.currentIndex)
+     }
 
 }
+
+
+
+
+
+
+
